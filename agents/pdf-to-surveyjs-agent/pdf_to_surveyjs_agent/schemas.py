@@ -5,6 +5,19 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class SurveyDraftResponse(BaseModel):
+    """Structured final response requested from the model through ADK."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    survey: dict[str, Any] = Field(
+        description="A SurveyJS JSON definition with elements or pages."
+    )
+    warnings: list[str] = Field(description="Uncertainties that require human review.")
+
 
 @dataclass(frozen=True)
 class ExtractionResult:

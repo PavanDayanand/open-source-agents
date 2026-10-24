@@ -5,7 +5,9 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 import sys
+import warnings
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -74,6 +76,14 @@ def main() -> int:
             return 2
 
     try:
+        # ADK logs full internal tracebacks before surfacing API errors. The CLI
+        # replaces those with concise, actionable messages below.
+        logging.getLogger("google.adk.workflow._node_runner").setLevel(logging.CRITICAL)
+        logging.getLogger("google.adk.runners").setLevel(logging.CRITICAL)
+        warnings.filterwarnings(
+            "ignore",
+            message=r"\[EXPERIMENTAL\] feature FeatureName\.JSON_SCHEMA_FOR_FUNC_DECL.*",
+        )
         result = asyncio.run(convert_pdf(args.pdf, max_retries=retries))
     except (ConfigurationError, ConversionError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)

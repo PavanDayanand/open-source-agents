@@ -6,6 +6,7 @@ import os
 
 from google.adk.agents import Agent
 
+from .schemas import SurveyDraftResponse
 from .tools import extract_pdf_text, validate_survey_json
 
 DEFAULT_MODEL = "gemma-4-26b-a4b-it"
@@ -49,6 +50,7 @@ def build_agent(model_name: str | None = None) -> Agent:
         description="Converts text-based PDF forms into reviewable SurveyJS JSON drafts.",
         instruction=AGENT_INSTRUCTION,
         tools=[extract_pdf_text, validate_survey_json],
+        output_schema=SurveyDraftResponse,
     )
 
 

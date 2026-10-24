@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+from types import SimpleNamespace
+
 import pytest
 
 from pdf_to_surveyjs_agent.workflow import (
@@ -7,6 +10,7 @@ from pdf_to_surveyjs_agent.workflow import (
     ConversionError,
     _parse_model_json,
     _require_configuration,
+    _run_turn,
 )
 
 
@@ -34,9 +38,67 @@ def test_parse_model_json_accepts_fenced_output() -> None:
     assert parsed["warnings"] == ["Review required"]
 
 
+def test_parse_model_json_accepts_json_surrounded_by_prose() -> None:
+    parsed = _parse_model_json(
+        'Here is the draft:\n{"survey":{"elements":[]},"warnings":[]}\nPlease review it.'
+    )
+
+    assert parsed == {"survey": {"elements": []}, "warnings": []}
+
+
+def test_parse_model_json_ignores_unrelated_object_before_envelope() -> None:
+    parsed = _parse_model_json(
+        'Metadata: {"status":"draft"}\n'
+        '{"survey":{"elements":[]},"warnings":["Check labels"]}'
+    )
+
+    assert parsed["warnings"] == ["Check labels"]
+
+
 def test_parse_model_json_rejects_extra_wrapper_keys() -> None:
-    with pytest.raises(ConversionError, match="exactly the keys"):
+    with pytest.raises(ConversionError, match="required SurveyJS JSON object"):
         _parse_model_json(
             '{"survey":{"elements":[]},"warnings":[],"unexpected":true}'
         )
+
+
+def test_agent_uses_structured_output_schema() -> None:
+    from pdf_to_surveyjs_agent.agent import build_agent
+    from pdf_to_surveyjs_agent.schemas import SurveyDraftResponse
+
+    assert build_agent().output_schema is SurveyDraftResponse
+
+
+def test_run_turn_ignores_thought_parts() -> None:
+    class FakeRunner:
+        async def run_async(self, **_kwargs):
+            yield SimpleNamespace(
+                error_code=None,
+                content=SimpleNamespace(
+                    parts=[
+                        SimpleNamespace(text="internal reasoning", thought=True),
+                        SimpleNamespace(
+                            text='{"survey":{"elements":[]},"warnings":[]}',
+                            thought=False,
+                        ),
+                    ]
+                ),
+                is_final_response=lambda: True,
+            )
+
+    result = asyncio.run(_run_turn(FakeRunner(), "session", "prompt"))
+
+    assert result == '{"survey":{"elements":[]},"warnings":[]}'
+
+
+def test_run_turn_turns_quota_event_into_short_error() -> None:
+    class FakeRunner:
+        async def run_async(self, **_kwargs):
+            yield SimpleNamespace(
+                error_code="RESOURCE_EXHAUSTED",
+                error_message="429 RESOURCE_EXHAUSTED",
+            )
+
+    with pytest.raises(ConversionError, match="quota was exceeded"):
+        asyncio.run(_run_turn(FakeRunner(), "session", "prompt"))
 

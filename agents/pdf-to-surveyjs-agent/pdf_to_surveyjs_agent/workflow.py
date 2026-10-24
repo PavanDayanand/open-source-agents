@@ -41,16 +41,42 @@ def _require_configuration() -> str:
 
 
 def _parse_model_json(text: str) -> dict[str, Any]:
+    """Find and validate the required JSON envelope in a model response.
+
+    ADK's output schema should normally make the whole response valid JSON. The
+    scanning fallback tolerates a model adding a short preface or Markdown fence
+    without accepting arbitrary partial structures.
+    """
+
     candidate = text.strip()
-    fenced = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", candidate, flags=re.DOTALL)
+    fenced = re.fullmatch(
+        r"```(?:json)?\s*(.*?)\s*```", candidate, flags=re.DOTALL | re.IGNORECASE
+    )
     if fenced:
-        candidate = fenced.group(1)
+        candidate = fenced.group(1).strip()
+
+    parsed_objects: list[Any] = []
     try:
-        value = json.loads(candidate)
-    except json.JSONDecodeError as exc:
-        raise ConversionError(
-            f"Model returned invalid JSON at line {exc.lineno}, column {exc.colno}: {exc.msg}"
-        ) from exc
+        parsed_objects.append(json.loads(candidate))
+    except json.JSONDecodeError:
+        decoder = json.JSONDecoder()
+        for match in re.finditer(r"\{", candidate):
+            try:
+                value, _ = decoder.raw_decode(candidate[match.start() :])
+            except json.JSONDecodeError:
+                continue
+            parsed_objects.append(value)
+
+    for value in parsed_objects:
+        if isinstance(value, dict) and set(value) == {"survey", "warnings"}:
+            return _validate_model_envelope(value)
+
+    raise ConversionError(
+        "Model response did not contain the required SurveyJS JSON object."
+    )
+
+
+def _validate_model_envelope(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ConversionError("Model response must be a JSON object.")
     if set(value) != {"survey", "warnings"}:
@@ -66,25 +92,61 @@ def _parse_model_json(text: str) -> dict[str, Any]:
     return value
 
 
+def _friendly_model_error(exc: Exception) -> ConversionError:
+    message = str(exc)
+    if "RESOURCE_EXHAUSTED" in message or "429" in message:
+        return ConversionError(
+            "Gemma quota was exceeded. Wait for the quota window to reset, use a "
+            "smaller PDF, or use an account with a higher quota."
+        )
+    if "PERMISSION_DENIED" in message or "403" in message:
+        return ConversionError(
+            "Gemma access was denied. Check the API key and model access in Google AI Studio."
+        )
+    if "UNAUTHENTICATED" in message or "401" in message:
+        return ConversionError("The Google API key was rejected.")
+    if "NOT_FOUND" in message or "404" in message:
+        return ConversionError(
+            "The configured Gemma model was not found or is unavailable to this account."
+        )
+    return ConversionError(f"Gemma request failed: {type(exc).__name__}.")
+
+
 async def _run_turn(
     runner: InMemoryRunner, session_id: str, prompt: str
 ) -> str:
     chunks: list[str] = []
-    async for event in runner.run_async(
-        user_id="local-user",
-        session_id=session_id,
-        new_message=types.Content(
-            role="user", parts=[types.Part.from_text(text=prompt)]
-        ),
-        run_config=RunConfig(max_llm_calls=3),
-    ):
-        if not event.content or not event.content.parts:
-            continue
-        event_text = "".join(part.text or "" for part in event.content.parts)
-        if event_text and (
-            not hasattr(event, "is_final_response") or event.is_final_response()
+    try:
+        async for event in runner.run_async(
+            user_id="local-user",
+            session_id=session_id,
+            new_message=types.Content(
+                role="user", parts=[types.Part.from_text(text=prompt)]
+            ),
+            run_config=RunConfig(max_llm_calls=3),
         ):
-            chunks.append(event_text)
+            if getattr(event, "error_code", None):
+                raise _friendly_model_error(
+                    RuntimeError(
+                        getattr(event, "error_message", None)
+                        or f"Gemma request failed with {event.error_code}."
+                    )
+                )
+            if not event.content or not event.content.parts:
+                continue
+            event_text = "".join(
+                part.text or ""
+                for part in event.content.parts
+                if not getattr(part, "thought", False)
+            )
+            if event_text and (
+                not hasattr(event, "is_final_response") or event.is_final_response()
+            ):
+                chunks.append(event_text)
+    except ConversionError:
+        raise
+    except Exception as exc:
+        raise _friendly_model_error(exc) from exc
     if not chunks:
         raise ConversionError("The model returned no final text response.")
     return chunks[-1]

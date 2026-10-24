@@ -15,6 +15,7 @@
 
 - Extracts text deterministically with PyMuPDF; scanned PDFs receive an explicit OCR warning.
 - Uses a configurable Gemma model through Google ADK to infer conservative form fields.
+- Constrains the final model response with an ADK structured-output schema and safely handles JSON surrounded by explanatory text.
 - Validates JSON syntax, structure, supported question types, names, choices, and common property types.
 - Makes at most one model repair attempt by default, then reports remaining validation errors.
 - Includes extraction-only and validation-only modes that do not call a model.
@@ -201,6 +202,7 @@ These checks verify useful structure, not the entire SurveyJS runtime schema or 
 - No OCR; image-only/scanned PDFs are reported rather than guessed.
 - Complex visual layout, tables, signatures, and handwriting may be lost during extraction.
 - The model can omit or misclassify fields. Validation checks shape, not meaning.
+- Very large PDFs can exceed hosted-model token quotas; automatic page chunking is not yet included.
 - Conditional logic is included only when the model finds explicit evidence; a reviewer must confirm it.
 - Input is limited to 15 MB and 100 pages. Model-bound extracted text is capped at 100,000 characters.
 - Gemma access and identifiers can change. Override `PDF_SURVEY_MODEL` when required.
