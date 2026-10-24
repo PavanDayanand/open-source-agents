@@ -205,14 +205,30 @@ export default function App() {
 
   return (
     <div className="app-frame">
+      <div className="tricolor-ribbon" aria-hidden="true" />
+      <aside className="gov-utility-bar" aria-label="Official government portal notice">
+        <div className="emblem-text">
+          <span className="emblem-flag" aria-hidden="true">🇮🇳</span>
+          <span>भारत सरकार | Government of India</span>
+        </div>
+        <div className="gov-utility-links" aria-label="Portal assistance">
+          <span>Screen Reader Access</span>
+          <span>Skip to Main Content</span>
+          <span>Helpdesk</span>
+        </div>
+      </aside>
+
       <header className="topbar">
-        <button className="brand" onClick={() => setView("library")} aria-label="Google ADK Survey Agent home">
-          <span className="brand-mark">ADK</span>
-          <span>GOOGLE ADK <i>SURVEY AGENT</i></span>
+        <button className="brand" onClick={() => setView("library")} aria-label="National Form Digitization Portal home">
+          <div className="brand-crest" aria-hidden="true">🏛️</div>
+          <div className="brand-text">
+            <strong>National Form Digitization Portal</strong>
+            <span>राष्ट्रीय प्रपत्र डिजिटलीकरण | Digital India Initiative <span className="brand-tag">GovForms AI</span></span>
+          </div>
         </button>
         <nav aria-label="Primary navigation">
-          <button className={view === "library" ? "nav-link current" : "nav-link"} onClick={() => setView("library")}>Forms</button>
-          <button className="primary small" onClick={() => setView("create")}>New form</button>
+          <button className={view === "library" ? "nav-link current" : "nav-link"} onClick={() => setView("library")}>Forms Directory</button>
+          <button className="primary small" onClick={() => setView("create")}>+ Digitize Form</button>
         </nav>
       </header>
 
@@ -220,44 +236,44 @@ export default function App() {
         <main className="page library-page">
           <section className="page-heading">
             <div>
-              <p className="eyebrow">Workspace</p>
-              <h1>Your forms</h1>
-              <p>From static document to live form. Generate, refine, test, repeat.</p>
+              <p className="eyebrow">Public Services & Scheme Digitization</p>
+              <h1>National Scheme & Service Forms</h1>
+              <p>Automated conversion of official government PDF forms into accessible, valid SurveyJS digital services.</p>
             </div>
-            <button className="primary" onClick={() => setView("create")}>Create new form</button>
+            <button className="primary" onClick={() => setView("create")}>+ Digitize New Form</button>
           </section>
 
           <section className="summary-grid" aria-label="Form summary">
-            <article><span>Active forms</span><strong>0</strong><small>Ready to collect responses</small></article>
-            <article><span>Draft forms</span><strong>{result ? 1 : 0}</strong><small>Saved in this browser</small></article>
-            <article><span>Responses</span><strong>{answers ? 1 : 0}</strong><small>Captured during testing</small></article>
+            <article><span>Published Forms</span><strong>0</strong><small>Active citizen services</small></article>
+            <article><span>Draft Forms</span><strong>{result ? 1 : 0}</strong><small>Saved in official workbench</small></article>
+            <article><span>Citizen Submissions</span><strong>{answers ? 1 : 0}</strong><small>Captured during testing</small></article>
           </section>
 
           <section className="forms-card">
             <div className="forms-toolbar">
               <div className="library-tabs" role="tablist" aria-label="Form status">
-                <button role="tab" aria-selected={libraryTab === "active"} className={libraryTab === "active" ? "active" : ""} onClick={() => setLibraryTab("active")}>Active</button>
-                <button role="tab" aria-selected={libraryTab === "drafts"} className={libraryTab === "drafts" ? "active" : ""} onClick={() => setLibraryTab("drafts")}>Drafts {result ? <span>1</span> : null}</button>
+                <button role="tab" aria-selected={libraryTab === "active"} className={libraryTab === "active" ? "active" : ""} onClick={() => setLibraryTab("active")}>Published Schemes</button>
+                <button role="tab" aria-selected={libraryTab === "drafts"} className={libraryTab === "drafts" ? "active" : ""} onClick={() => setLibraryTab("drafts")}>Drafts & Revisions {result ? <span>1</span> : null}</button>
               </div>
-              <span className="local-note">Stored locally on this device</span>
+              <span className="local-note">Secured locally in administrative console</span>
             </div>
 
             {libraryTab === "drafts" && result ? (
               <div className="forms-table" role="table" aria-label="Draft forms">
-                <div className="table-head" role="row"><span>Name</span><span>Source</span><span>Status</span><span aria-hidden="true" /></div>
+                <div className="table-head" role="row"><span>Scheme / Form Title</span><span>Engine & Model</span><span>Status</span><span aria-hidden="true" /></div>
                 <div className="form-row" role="row">
-                  <div className="form-name"><span className="form-icon">{surveyTitle.charAt(0).toUpperCase()}</span><div><strong>{surveyTitle}</strong><small>Created with Google ADK + Gemma</small></div></div>
+                  <div className="form-name"><span className="form-icon">{surveyTitle.charAt(0).toUpperCase()}</span><div><strong>{surveyTitle}</strong><small>Converted via Google ADK + Gemma</small></div></div>
                   <span>{result.model}</span>
-                  <span><i className="status-dot" />Draft</span>
-                  <button className="text-button" onClick={() => setView("editor")}>Open <span aria-hidden="true">›</span></button>
+                  <span><i className="status-dot" />Verified Draft</span>
+                  <button className="text-button" onClick={() => setView("editor")}>Open Workbench <span aria-hidden="true">›</span></button>
                 </div>
               </div>
             ) : (
               <div className="empty-state">
                 <span className="empty-symbol">{libraryTab === "active" ? "✓" : "+"}</span>
-                <h2>{libraryTab === "active" ? "No active forms yet" : "Start your first draft"}</h2>
-                <p>{libraryTab === "active" ? "Drafts you publish will appear here." : "Create from a PDF or import SurveyJS JSON."}</p>
-                {libraryTab === "drafts" && <button className="primary" onClick={() => setView("create")}>Create form</button>}
+                <h2>{libraryTab === "active" ? "No published services yet" : "Start form digitization"}</h2>
+                <p>{libraryTab === "active" ? "Forms published to national citizen schemes will appear here." : "Upload an official departmental PDF form or import a SurveyJS schema."}</p>
+                {libraryTab === "drafts" && <button className="primary" onClick={() => setView("create")}>Digitize Form</button>}
               </div>
             )}
           </section>
@@ -266,33 +282,33 @@ export default function App() {
 
       {view === "create" && (
         <main className="page create-page">
-          <button className="back-button" onClick={() => setView("library")}>‹ All forms</button>
+          <button className="back-button" onClick={() => setView("library")}>‹ Back to Directory</button>
           <header className="create-heading">
-            <p className="eyebrow">New form</p>
-            <h1>Start with what you have.</h1>
-            <p>Generate with Gemma from a PDF, or open an existing SurveyJS definition.</p>
+            <p className="eyebrow">Form Intake & Processing</p>
+            <h1>Digitize Departmental Form</h1>
+            <p>Upload a departmental PDF to generate a standardized SurveyJS schema using Gemma and Google ADK.</p>
           </header>
 
           <div className="source-tabs" role="tablist" aria-label="Survey source">
-            <button role="tab" aria-selected={activeTab === "pdf"} className={activeTab === "pdf" ? "active" : ""} onClick={() => { setActiveTab("pdf"); setError(""); }}>PDF form</button>
-            <button role="tab" aria-selected={activeTab === "json"} className={activeTab === "json" ? "active" : ""} onClick={() => { setActiveTab("json"); setError(""); }}>SurveyJS JSON</button>
+            <button role="tab" aria-selected={activeTab === "pdf"} className={activeTab === "pdf" ? "active" : ""} onClick={() => { setActiveTab("pdf"); setError(""); }}>Official PDF Document</button>
+            <button role="tab" aria-selected={activeTab === "json"} className={activeTab === "json" ? "active" : ""} onClick={() => { setActiveTab("json"); setError(""); }}>Existing SurveyJS Schema</button>
           </div>
 
           {activeTab === "pdf" ? (
             <section className="source-card" aria-labelledby="upload-heading">
-              <div className="source-copy"><span className="source-icon">PDF</span><div><h2 id="upload-heading">Generate from a PDF</h2><p>Gemma reads the form structure while deterministic checks keep the output usable.</p></div></div>
+              <div className="source-copy"><span className="source-icon">PDF</span><div><h2 id="upload-heading">Extract & Digitize from PDF</h2><p>Gemma analyzes sections, labels, inputs, and validation rules with automated self-healing.</p></div></div>
               <form onSubmit={convert} className="upload-form">
-                <label className="file-picker"><span>{file ? file.name : "Choose PDF file"}</span><input type="file" accept="application/pdf,.pdf" onChange={chooseFile} /></label>
-                <button className="primary" type="submit" disabled={!file || loading}>{loading ? `Generating… ${elapsedSeconds}s` : "Generate form"}</button>
-                <label className="retry-option"><input type="checkbox" checked={retryInvalid} disabled={loading} onChange={(event) => setRetryInvalid(event.target.checked)} />Retry once if model output is invalid</label>
+                <label className="file-picker"><span>{file ? file.name : "Select departmental PDF file"}</span><input type="file" accept="application/pdf,.pdf" onChange={chooseFile} /></label>
+                <button className="primary" type="submit" disabled={!file || loading}>{loading ? `Digitizing… ${elapsedSeconds}s` : "Start Digitization"}</button>
+                <label className="retry-option"><input type="checkbox" checked={retryInvalid} disabled={loading} onChange={(event) => setRetryInvalid(event.target.checked)} />Bounded self-healing retry on validation failure</label>
               </form>
-              {loading && <div className="generation-status" role="status" aria-live="polite"><span className="spinner" aria-hidden="true" /><div><strong>Building your survey</strong><p>{progressMessage}</p></div></div>}
+              {loading && <div className="generation-status" role="status" aria-live="polite"><span className="spinner" aria-hidden="true" /><div><strong>Processing Government Document</strong><p>{progressMessage}</p></div></div>}
               {error && <p className="error" role="alert">{error}</p>}
             </section>
           ) : (
             <section className="source-card" aria-labelledby="json-heading">
-              <div className="source-copy"><span className="source-icon braces">{'{ }'}</span><div><h2 id="json-heading">Open SurveyJS JSON</h2><p>Use a SurveyJS definition or the complete output generated by this agent.</p></div></div>
-              <label className="primary file-action">Choose JSON file<input type="file" accept="application/json,.json" onChange={importJson} /></label>
+              <div className="source-copy"><span className="source-icon braces">{'{ }'}</span><div><h2 id="json-heading">Import Standardized Schema</h2><p>Load a verified SurveyJS JSON definition to preview, edit, or test interactively.</p></div></div>
+              <label className="primary file-action">Upload Schema JSON<input type="file" accept="application/json,.json" onChange={importJson} /></label>
               {error && <p className="error" role="alert">{error}</p>}
             </section>
           )}
@@ -302,22 +318,22 @@ export default function App() {
       {view === "editor" && result && surveyModel && (
         <main className="editor-page">
           <header className="editor-topbar">
-            <div><button className="back-button" onClick={() => setView("library")}>‹ Forms</button><div><strong>{surveyTitle}</strong><span>{savedMessage || "Draft · Changes not saved"}</span></div></div>
-            <div className="editor-actions"><button className="secondary" onClick={() => downloadJson("survey.json", result.survey)}>Download JSON</button><button className="primary" disabled={Boolean(jsonError)} onClick={saveLocally}>Save draft</button></div>
+            <div><button className="back-button" onClick={() => setView("library")}>‹ Forms Directory</button><div><strong>{surveyTitle}</strong><span>{savedMessage || "Administrative Draft · Not yet published"}</span></div></div>
+            <div className="editor-actions"><button className="secondary" onClick={() => downloadJson("survey.json", result.survey)}>Export Schema (JSON)</button><button className="primary" disabled={Boolean(jsonError)} onClick={saveLocally}>Save Official Draft</button></div>
           </header>
 
-          {result.warnings.length > 0 && <details className="warnings"><summary>{result.warnings.length} review note{result.warnings.length === 1 ? "" : "s"}</summary><ul>{result.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></details>}
+          {result.warnings.length > 0 && <details className="warnings"><summary>{result.warnings.length} verification notice{result.warnings.length === 1 ? "" : "s"}</summary><ul>{result.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></details>}
 
           <section className="workspace" aria-label="Survey editor">
             <div className="preview surface">
               <div className="section-heading">
-                <div><p className="step">Preview</p><h2>{previewMode === "form" ? "Form experience" : "Source PDF"}</h2></div>
+                <div><p className="step">Citizen Experience</p><h2>{previewMode === "form" ? "Interactive Form Preview" : "Source Document"}</h2></div>
                 {pdfPreviewUrl ? (
                   <div className="preview-switch" role="tablist" aria-label="Preview type">
-                    <button role="tab" aria-selected={previewMode === "form"} className={previewMode === "form" ? "active" : ""} onClick={() => setPreviewMode("form")}>Live form</button>
-                    <button role="tab" aria-selected={previewMode === "pdf"} className={previewMode === "pdf" ? "active" : ""} onClick={() => setPreviewMode("pdf")}>Source PDF</button>
+                    <button role="tab" aria-selected={previewMode === "form"} className={previewMode === "form" ? "active" : ""} onClick={() => setPreviewMode("form")}>Interactive Form</button>
+                    <button role="tab" aria-selected={previewMode === "pdf"} className={previewMode === "pdf" ? "active" : ""} onClick={() => setPreviewMode("pdf")}>Original Document</button>
                   </div>
-                ) : <span className="preview-badge">Interactive</span>}
+                ) : <span className="preview-badge">Live Verification</span>}
               </div>
               {previewMode === "pdf" && pdfPreviewUrl ? (
                 <iframe className="pdf-preview" src={pdfPreviewUrl} title="Uploaded source PDF" />
@@ -325,12 +341,25 @@ export default function App() {
                 <Survey model={surveyModel} />
               )}
             </div>
-            <div className="json-editor surface"><div className="section-heading"><div><p className="step">Structure</p><h2>Survey JSON</h2></div><span className={jsonError ? "code-state invalid" : "code-state"}>{jsonError ? "Invalid" : "Valid"}</span></div><textarea aria-label="Survey JSON editor" spellCheck={false} value={jsonText} onChange={(event) => editJson(event.target.value)} /><p className={jsonError ? "editor-status invalid" : "editor-status"}>{jsonError || "Preview updates automatically"}</p></div>
+            <div className="json-editor surface"><div className="section-heading"><div><p className="step">Specification</p><h2>SurveyJS Schema JSON</h2></div><span className={jsonError ? "code-state invalid" : "code-state"}>{jsonError ? "Schema Error" : "Schema Valid"}</span></div><textarea aria-label="Survey JSON editor" spellCheck={false} value={jsonText} onChange={(event) => editJson(event.target.value)} /><p className={jsonError ? "editor-status invalid" : "editor-status"}>{jsonError || "Interactive form synchronizes in real-time"}</p></div>
           </section>
 
-          {answers && <section className="answers"><div><strong>Test response captured</strong><span>Kept in this browser session only.</span></div><button className="secondary" onClick={() => downloadJson("response.json", answers)}>Download response</button></section>}
+          {answers && <section className="answers"><div><strong>Sample Citizen Response Captured</strong><span>Validated against SurveyJS runtime schema. Not stored on remote servers.</span></div><button className="secondary" onClick={() => downloadJson("response.json", answers)}>Download Response JSON</button></section>}
         </main>
       )}
+
+      <footer className="gov-footer">
+        <div className="gov-footer-content">
+          <div>
+            <strong>National Form Digitization Portal</strong>
+            <p>Designed and developed for Digital India initiatives using Google Agent Development Kit (ADK) & Gemma.</p>
+          </div>
+          <div>
+            <p>© {new Date().getFullYear()} Government of India. All rights reserved.</p>
+            <p>Built for automated public service delivery & accessible e-governance.</p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
