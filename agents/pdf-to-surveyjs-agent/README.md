@@ -19,6 +19,9 @@
 - Validates JSON syntax, structure, supported question types, names, choices, and common property types.
 - Makes at most one model repair attempt by default, then reports remaining validation errors.
 - Includes extraction-only and validation-only modes that do not call a model.
+- Includes a small React and TypeScript demo for PDF or JSON upload, live form
+  preview and JSON editing, browser-local saving, and downloads; no database or
+  login is required.
 
 The result is a draft. A human must review it before use. This project does not publish forms or collect submissions.
 
@@ -30,6 +33,7 @@ The result is a draft. A human must review it before use. This project does not 
 - **Agent framework**: Google Agent Development Kit (ADK) 2.12
 - **Model**: Gemma 4 26B MoE IT by default (`gemma-4-26b-a4b-it`), configurable
 - **PDF extraction**: PyMuPDF
+- **Demo UI**: React, TypeScript, Vite, SurveyJS Form Library, and Flask
 - **Tests**: pytest
 
 The default model identifier reflects the Gemma model documented for the Gemini API when this project was built. Availability can vary by account and region, so the model is isolated in `PDF_SURVEY_MODEL`.
@@ -115,6 +119,28 @@ Convert a PDF and save the reviewable draft:
 ```bash
 python main.py examples/sample_form.generated.pdf --output output/sample_output.json
 ```
+
+### Local React demo
+
+Install and build the frontend once:
+
+```bash
+cd web
+npm install
+npm run build
+cd ..
+```
+
+Start the combined local app:
+
+```bash
+python web_app.py
+```
+
+Open `http://127.0.0.1:8000`. Upload a PDF to generate a form, or upload existing
+SurveyJS JSON to preview it immediately. Valid JSON edits update the preview.
+Drafts can be saved to browser local storage, and test responses stay in browser
+memory unless downloaded. Nothing is stored in a database.
 
 Validate an existing SurveyJS object without a model call:
 

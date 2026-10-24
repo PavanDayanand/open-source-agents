@@ -139,9 +139,7 @@ async def _run_turn(
                 for part in event.content.parts
                 if not getattr(part, "thought", False)
             )
-            if event_text and (
-                not hasattr(event, "is_final_response") or event.is_final_response()
-            ):
+            if event_text:
                 chunks.append(event_text)
     except ConversionError:
         raise

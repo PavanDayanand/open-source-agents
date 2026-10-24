@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 
 from google.adk.agents import Agent
+from google.genai import types
 
 from .schemas import SurveyDraftResponse
 from .tools import extract_pdf_text, validate_survey_json
@@ -34,8 +35,8 @@ Output rules:
 - Add choices only when they are present in the source.
 - Set isRequired only when the document explicitly marks a field required.
 - Add visibleIf only when the source states a clear condition that can be
-  represented accurately. Use SurveyJS syntax such as {gender} = 'Other' without
-  wrapping the whole expression or property name in quotes.
+  represented accurately. Use normal SurveyJS expression syntax without wrapping
+  the whole expression or property name in quotes.
 - Do not invent questions, choices, validation rules, or business logic. Put
   uncertainty in warnings.
 """.strip()
@@ -55,6 +56,10 @@ def build_agent(model_name: str | None = None) -> Agent:
         instruction=AGENT_INSTRUCTION,
         tools=[extract_pdf_text, validate_survey_json],
         output_schema=SurveyDraftResponse,
+        generate_content_config=types.GenerateContentConfig(
+            temperature=0.1,
+            thinking_config=types.ThinkingConfig(thinking_level="minimal"),
+        ),
     )
 
 

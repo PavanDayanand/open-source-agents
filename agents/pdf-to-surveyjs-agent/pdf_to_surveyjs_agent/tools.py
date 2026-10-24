@@ -80,6 +80,11 @@ def normalize_survey(value: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     pages = survey.get("pages")
     root_elements = survey.get("elements")
 
+    if isinstance(pages, list):
+        for page in pages:
+            if isinstance(page, dict) and "elements" not in page:
+                page["elements"] = []
+
     if isinstance(pages, list) and isinstance(root_elements, list):
         unmapped: list[Any] = []
         moved = 0
@@ -116,9 +121,18 @@ def normalize_survey(value: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
                 f"Moved {moved} question(s) from top-level elements into their pages."
             )
         if unmapped:
-            survey["elements"] = unmapped
-        else:
-            survey.pop("elements", None)
+            pages.append(
+                {
+                    "name": "additional_questions",
+                    "title": "Additional questions",
+                    "elements": unmapped,
+                }
+            )
+            warnings.append(
+                f"Placed {len(unmapped)} question(s) without a page reference in "
+                "Additional questions."
+            )
+        survey.pop("elements", None)
 
     if isinstance(pages, list):
         nonempty_pages = [

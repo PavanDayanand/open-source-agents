@@ -11,6 +11,8 @@ service-account*.json
 __pycache__/
 *.py[cod]
 .venv/
+web/node_modules/
+web/dist/
 venv/
 env/
 .pytest_cache/
@@ -30,6 +32,9 @@ yarn-error.log*
 .pnpm-debug.log*
 dist/
 build/
+*.tsbuildinfo
+web/vite.config.js
+web/vite.config.d.ts
 
 # Operating system and editor files
 .DS_Store

@@ -139,11 +139,35 @@ def test_missing_question_title_is_an_error() -> None:
     assert any("title must be" in error for error in result.errors)
 
 
+def test_normalizes_unmapped_root_questions_into_an_additional_page() -> None:
+    survey, warnings = normalize_survey(
+        {
+            "pages": [{"name": "about", "elements": []}],
+            "elements": [{"type": "text", "name": "notes"}],
+        }
+    )
+
+    assert "elements" not in survey
+    assert survey["pages"] == [
+        {
+            "name": "additional_questions",
+            "title": "Additional questions",
+            "elements": [
+                {"type": "text", "name": "notes", "title": "Notes"}
+            ],
+        }
+    ]
+    assert warnings == [
+        "Placed 1 question(s) without a page reference in Additional questions.",
+        "Removed 1 empty page(s).",
+    ]
+
+
 def test_normalizes_model_page_layout_titles_and_conditions() -> None:
     survey, warnings = normalize_survey(
         {
             "pages": [
-                {"name": "Tell us about you", "elements": []},
+                {"name": "Tell us about you"},
                 {"name": "Family details", "elements": []},
                 {"name": "Unused section", "elements": []},
             ],

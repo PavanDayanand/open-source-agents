@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from types import SimpleNamespace
 
 import pytest
@@ -63,10 +64,15 @@ def test_parse_model_json_rejects_extra_wrapper_keys() -> None:
 
 
 def test_agent_uses_structured_output_schema() -> None:
-    from pdf_to_surveyjs_agent.agent import build_agent
+    from pdf_to_surveyjs_agent.agent import AGENT_INSTRUCTION, build_agent
     from pdf_to_surveyjs_agent.schemas import SurveyDraftResponse
 
-    assert build_agent().output_schema is SurveyDraftResponse
+    agent = build_agent()
+    assert agent.output_schema is SurveyDraftResponse
+    assert agent.generate_content_config.temperature == 0.1
+    assert agent.generate_content_config.max_output_tokens is None
+    assert agent.generate_content_config.thinking_config.thinking_level.value == "MINIMAL"
+    assert re.search(r"(?<![${\\])\{[^{}]+\}", AGENT_INSTRUCTION) is None
 
 
 def test_run_turn_ignores_thought_parts() -> None:
@@ -84,6 +90,27 @@ def test_run_turn_ignores_thought_parts() -> None:
                     ]
                 ),
                 is_final_response=lambda: True,
+            )
+
+    result = asyncio.run(_run_turn(FakeRunner(), "session", "prompt"))
+
+    assert result == '{"survey":{"elements":[]},"warnings":[]}'
+
+
+def test_run_turn_accepts_text_when_event_is_not_marked_final() -> None:
+    class FakeRunner:
+        async def run_async(self, **_kwargs):
+            yield SimpleNamespace(
+                error_code=None,
+                content=SimpleNamespace(
+                    parts=[
+                        SimpleNamespace(
+                            text='{"survey":{"elements":[]},"warnings":[]}',
+                            thought=False,
+                        )
+                    ]
+                ),
+                is_final_response=lambda: False,
             )
 
     result = asyncio.run(_run_turn(FakeRunner(), "session", "prompt"))
