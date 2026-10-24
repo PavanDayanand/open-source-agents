@@ -185,6 +185,10 @@ async def convert_pdf(
 Create a complete SurveyJS form definition containing ALL questions from ALL {extraction.page_count} pages of the document text below.
 CRITICAL INSTRUCTIONS:
 - You must extract questions from Page 1, Page 2, Page 3, and every subsequent page until the end. DO NOT stop after Page 1.
+- In "elements", EVERY single item MUST be a JSON object (dictionary) with "type", "name", and "title". NEVER return strings or bare text inside "elements".
+  Example element: {{"type": "text", "name": "applicant_name", "title": "Applicant Name", "isRequired": true}}
+- For "html" questions, you MUST provide the "html" string property:
+  {{"type": "html", "name": "notice", "html": "<p>Instructions here</p>"}}
 - Set the top-level form "title" and "description" from the document header.
 - Create separate "pages" for each major section (e.g. "Tell us about you", "Contact details", "Experience in care", "Family details").
 - Use verbatim question labels from the form.

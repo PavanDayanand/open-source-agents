@@ -185,9 +185,41 @@ def normalize_survey(value: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     def _normalize_elements_list(elements_list: list[Any]) -> list[Any]:
         cleaned: list[Any] = []
         for el in elements_list:
-            if not isinstance(el, dict):
-                cleaned.append(el)
+            if isinstance(el, str):
+                raw_str = el.strip()
+                if not raw_str:
+                    continue
+                is_req = False
+                t = raw_str
+                if t.endswith("*") or "(required)" in t.lower() or "required" in t.lower():
+                    is_req = True
+                    t = re.sub(r"\s*\*|\s*\(required\)", "", t, flags=re.IGNORECASE).strip()
+
+                slug = re.sub(r"[^a-z0-9]+", "_", t.lower()).strip("_")
+                q_name = slug[:50] or f"field_{len(cleaned)+1}"
+                t_lower = t.lower()
+
+                if re.search(r"\b(date\s+of\s+birth|dob|birth\s*date|date)\b", t_lower):
+                    q_obj: dict[str, Any] = {"type": "text", "name": q_name, "title": t, "inputType": "date"}
+                elif "email" in t_lower:
+                    q_obj = {"type": "text", "name": q_name, "title": t, "inputType": "email"}
+                elif re.search(r"\b(phone|tel|telephone|mobile|contact\s+number)\b", t_lower):
+                    q_obj = {"type": "text", "name": q_name, "title": t, "inputType": "tel"}
+                elif any(k in t_lower for k in ("address", "describe", "description", "reason", "detail", "comment", "remark", "narrative", "story", "explain")):
+                    q_obj = {"type": "comment", "name": q_name, "title": t}
+                elif any(t_lower.startswith(p) for p in ("are you", "do you", "is ", "have you", "will you", "can you", "did you")):
+                    q_obj = {"type": "radiogroup", "name": q_name, "title": t, "choices": ["Yes", "No"]}
+                else:
+                    q_obj = {"type": "text", "name": q_name, "title": t}
+
+                if is_req:
+                    q_obj["isRequired"] = True
+                cleaned.append(q_obj)
                 continue
+
+            if not isinstance(el, dict):
+                continue
+
             # Merge dangling choice object into previous element if missing choices
             if (
                 not el.get("type")
@@ -208,6 +240,14 @@ def normalize_survey(value: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
             el.pop("page_title", None)
             el.pop("page", None)
 
+            # Normalize question title / label aliases
+            if not el.get("title"):
+                for alias in ("question", "label", "text", "prompt"):
+                    val = el.pop(alias, None)
+                    if isinstance(val, str) and val.strip():
+                        el["title"] = val.strip()
+                        break
+
             # Normalize choices aliases (options, items, values)
             if not el.get("choices"):
                 for alias in ("options", "items", "values"):
@@ -215,6 +255,32 @@ def normalize_survey(value: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
                     if isinstance(val, list) and val:
                         el["choices"] = val
                         break
+
+            # Normalize isRequired boolean
+            if "isRequired" in el and not isinstance(el["isRequired"], bool):
+                el["isRequired"] = str(el["isRequired"]).lower() in ("true", "1", "yes", "required")
+
+            # Handle type == "html" specifically
+            if el.get("type") == "html":
+                html_val = el.get("html")
+                if not isinstance(html_val, str) or not html_val.strip():
+                    for alias in ("title", "text", "content", "description"):
+                        val = el.get(alias)
+                        if isinstance(val, str) and val.strip():
+                            el["html"] = val.strip()
+                            break
+                        elif isinstance(val, list):
+                            el["html"] = "<br>".join(str(item) for item in val if item)
+                            break
+                    if not isinstance(el.get("html"), str) or not el.get("html", "").strip():
+                        if isinstance(html_val, list):
+                            el["html"] = "<br>".join(str(item) for item in html_val if item)
+                        elif isinstance(html_val, dict):
+                            el["html"] = str(html_val.get("text") or html_val.get("content") or html_val)
+                        else:
+                            el["html"] = str(el.get("title") or el.get("name") or "Information")
+                if not el.get("name") or not str(el.get("name")).strip():
+                    el["name"] = f"info_{len(cleaned)+1}"
 
             # Default missing question type (SurveyJS defaults to text)
             q_type = el.get("type")
@@ -236,7 +302,13 @@ def normalize_survey(value: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
                     else:
                         el["type"] = "text"
 
+            # Ensure valid name
             name = el.get("name")
+            if not isinstance(name, str) or not name.strip():
+                t = str(el.get("title") or "")
+                slug = re.sub(r"[^a-z0-9]+", "_", t.lower()).strip("_")
+                el["name"] = slug[:50] or f"field_{len(cleaned)+1}"
+
             if (
                 el.get("type") != "html"
                 and isinstance(name, str)
@@ -260,6 +332,28 @@ def normalize_survey(value: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
         for page in pages:
             if isinstance(page, dict) and isinstance(page.get("elements"), list):
                 page["elements"] = _normalize_elements_list(page["elements"])
+
+    # Deduplicate question names across the whole survey
+    used_q_names: set[str] = set()
+    element_groups_to_dedup: list[list[Any]] = []
+    if isinstance(survey.get("elements"), list):
+        element_groups_to_dedup.append(survey["elements"])
+    if isinstance(pages, list):
+        for page in pages:
+            if isinstance(page, dict) and isinstance(page.get("elements"), list):
+                element_groups_to_dedup.append(page["elements"])
+
+    for group in element_groups_to_dedup:
+        for element, _ in _iter_elements(group, "elements"):
+            if isinstance(element, dict) and element.get("type") != "html":
+                name = element.get("name")
+                if isinstance(name, str) and name.strip():
+                    if name in used_q_names:
+                        suffix = 2
+                        while f"{name}_{suffix}" in used_q_names:
+                            suffix += 1
+                        element["name"] = f"{name}_{suffix}"
+                    used_q_names.add(element["name"])
 
     if not survey.get("title") and pages and isinstance(pages, list) and isinstance(pages[0], dict):
         if pages[0].get("title"):

@@ -26,6 +26,7 @@ Output rules:
   * "title": The main document title (e.g. from the header).
   * "description": Issuing organization, ministry, or subtitle when present.
   * Either top-level "elements" (for single-page forms) or "pages" (for multi-page/multi-section forms).
+- CRITICAL: In "elements", EVERY question MUST be a full JSON object with "type", "name", and "title", NEVER a bare string or raw text.
 - CRITICAL: Process the ENTIRE document from the first page to the last. Do not stop after Page 1 or drop later pages.
 - When the form has multiple pages or distinct sections (e.g. "Tell us about you", "Contact details", "Experience in care"), create a page for each section with a descriptive "name" and human-readable "title". Place all questions for that section directly in that page's "elements" array.
 - Do not add custom properties like "pageTitle" to question objects; section titles belong on the page or panel object.
@@ -35,7 +36,7 @@ Output rules:
   * "text" with "inputType": "email" for email addresses.
   * "text" with "inputType": "tel" for telephone and mobile numbers.
   * "comment" for open-ended multi-sentence questions, narrative descriptions, or addresses.
-  * "html" with an "html" property for explanatory paragraphs, eligibility rules, or instructions.
+  * "html" with an "html" property containing string text for explanatory paragraphs or eligibility rules.
   * "radiogroup" for single-choice questions and "checkbox" for multi-choice questions.
   * Set "showOtherItem": true on radiogroups or checkboxes when an "Other (please specify)" option is present.
 - Set isRequired only when the document explicitly marks a field required (e.g., "*", "required", "must").

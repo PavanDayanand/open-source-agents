@@ -244,3 +244,55 @@ def test_normalize_survey_recovers_missing_types_and_choice_aliases() -> None:
     assert survey["pages"][0]["elements"][1]["type"] == "text"
     assert survey["pages"][0]["elements"][2]["choices"] == ["Email", "Phone"]
 
+
+def test_normalize_survey_recovers_string_elements_and_html_elements() -> None:
+    raw = {
+        "pages": [
+            {
+                "name": "personal",
+                "elements": [
+                    "Full name (required)",
+                    "Date of birth",
+                    "Email address",
+                    "Tell us your story in detail",
+                    "Do you have a passport?",
+                ],
+            },
+            {
+                "name": "declarations",
+                "elements": [
+                    {
+                        "type": "html",
+                        "title": "Please read these terms carefully before submitting.",
+                    },
+                    {
+                        "type": "text",
+                        "name": "full_name",  # Duplicate name from page 1!
+                        "title": "Confirm Full Name",
+                    },
+                ],
+            },
+        ]
+    }
+
+    survey, _ = normalize_survey(raw)
+    result = validate_survey(survey)
+
+    assert result.valid is True
+    assert len(survey["pages"][0]["elements"]) == 5
+    assert survey["pages"][0]["elements"][0]["name"] == "full_name"
+    assert survey["pages"][0]["elements"][0]["isRequired"] is True
+    assert survey["pages"][0]["elements"][1]["inputType"] == "date"
+    assert survey["pages"][0]["elements"][2]["inputType"] == "email"
+    assert survey["pages"][0]["elements"][3]["type"] == "comment"
+    assert survey["pages"][0]["elements"][4]["type"] == "radiogroup"
+    assert survey["pages"][0]["elements"][4]["choices"] == ["Yes", "No"]
+
+    # HTML question fixed
+    assert survey["pages"][1]["elements"][0]["type"] == "html"
+    assert survey["pages"][1]["elements"][0]["html"] == "Please read these terms carefully before submitting."
+
+    # Duplicate question name disambiguated
+    assert survey["pages"][1]["elements"][1]["name"] == "full_name_2"
+
+

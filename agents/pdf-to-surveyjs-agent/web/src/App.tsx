@@ -63,7 +63,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [savedMessage, setSavedMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const [retryInvalid, setRetryInvalid] = useState(false);
+  const [retryInvalid, setRetryInvalid] = useState(true);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   useEffect(() => {

@@ -45,7 +45,8 @@ def create_app() -> Flask:
 
         filename = secure_filename(uploaded.filename) or "upload.pdf"
         try:
-            max_retries = int(request.form.get("maxRetries", "0"))
+            raw_retries = request.form.get("maxRetries")
+            max_retries = int(raw_retries) if raw_retries is not None and raw_retries != "0" else 1
         except ValueError:
             return jsonify(error="maxRetries must be an integer."), 400
 
