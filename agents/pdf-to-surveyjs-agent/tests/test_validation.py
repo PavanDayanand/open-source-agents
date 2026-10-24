@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import json
 
-from pdf_to_surveyjs_agent.tools import validate_survey, validate_survey_json
+from pdf_to_surveyjs_agent.tools import (
+    normalize_survey,
+    validate_survey,
+    validate_survey_json,
+)
 
 
 def test_accepts_top_level_elements() -> None:
@@ -114,4 +118,69 @@ def test_json_validator_accepts_serialized_survey() -> None:
     result = validate_survey_json(payload)
 
     assert result == {"valid": True, "errors": [], "warnings": []}
+
+
+def test_rejects_mixed_page_and_top_level_layout() -> None:
+    result = validate_survey(
+        {
+            "pages": [{"name": "about", "elements": []}],
+            "elements": [{"type": "text", "name": "surname", "title": "Surname"}],
+        }
+    )
+
+    assert result.valid is False
+    assert any("cannot mix" in error for error in result.errors)
+
+
+def test_missing_question_title_is_an_error() -> None:
+    result = validate_survey({"elements": [{"type": "text", "name": "surname"}]})
+
+    assert result.valid is False
+    assert any("title must be" in error for error in result.errors)
+
+
+def test_normalizes_model_page_layout_titles_and_conditions() -> None:
+    survey, warnings = normalize_survey(
+        {
+            "pages": [
+                {"name": "Tell us about you", "elements": []},
+                {"name": "Family details", "elements": []},
+                {"name": "Unused section", "elements": []},
+            ],
+            "elements": [
+                {"page": 1, "type": "text", "name": "first_middle_names"},
+                {
+                    "page": 1,
+                    "type": "text",
+                    "name": "gender_other_text",
+                    "visibleIf": '"{gender}" = "Other"',
+                },
+                {
+                    "page": 2,
+                    "type": "text",
+                    "name": "ethnicity_other_text",
+                    "visibleIf": '"{ethnicity} contains \'Other\'"',
+                },
+            ],
+        }
+    )
+
+    assert "elements" not in survey
+    assert len(survey["pages"]) == 2
+    assert survey["pages"][0]["name"] == "tell_us_about_you"
+    assert survey["pages"][0]["title"] == "Tell us about you"
+    assert survey["pages"][0]["elements"][0] == {
+        "type": "text",
+        "name": "first_middle_names",
+        "title": "First middle names",
+    }
+    assert survey["pages"][0]["elements"][1]["visibleIf"] == "{gender} = 'Other'"
+    assert survey["pages"][1]["elements"][0]["visibleIf"] == (
+        "{ethnicity} contains 'Other'"
+    )
+    assert validate_survey(survey).valid is True
+    assert warnings == [
+        "Moved 3 question(s) from top-level elements into their pages.",
+        "Removed 1 empty page(s).",
+    ]
 

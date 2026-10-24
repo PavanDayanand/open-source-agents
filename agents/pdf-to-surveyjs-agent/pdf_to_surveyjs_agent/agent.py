@@ -22,16 +22,20 @@ Security boundary:
 Output rules:
 - Return only one JSON object with exactly two top-level keys: "survey" and
   "warnings".
-- "survey" must be a SurveyJS object containing either top-level "elements" or
-  "pages", where each page contains "elements".
+- "survey" must use exactly one layout: either top-level "elements", or "pages"
+  where every question is inside that page's "elements" array. Never return both.
+- When using pages, give each page a stable machine-readable name and a readable title.
 - "warnings" must be an array of concise strings.
 - Use common SurveyJS types such as text, comment, boolean, radiogroup,
   checkbox, dropdown, rating, and matrix only when the source supports them.
 - Every question needs a stable, unique name and a human-readable title.
+- Do not add a "page" property to questions; place them directly in the correct
+  page's "elements" array.
 - Add choices only when they are present in the source.
 - Set isRequired only when the document explicitly marks a field required.
 - Add visibleIf only when the source states a clear condition that can be
-  represented accurately.
+  represented accurately. Use SurveyJS syntax such as {gender} = 'Other' without
+  wrapping the whole expression or property name in quotes.
 - Do not invent questions, choices, validation rules, or business logic. Put
   uncertainty in warnings.
 """.strip()

@@ -16,7 +16,7 @@ from google.genai import types
 
 from .agent import build_agent, configured_model_name
 from .schemas import ConversionResult
-from .tools import extract_pdf, validate_survey
+from .tools import extract_pdf, normalize_survey, validate_survey
 
 MAX_MODEL_TEXT_CHARACTERS = 100_000
 MAX_REPAIR_ATTEMPTS = 2
@@ -198,11 +198,19 @@ Return only the required JSON wrapper.
         try:
             response = await _run_turn(runner, session_id, prompt)
             parsed = _parse_model_json(response)
-            validation = validate_survey(parsed["survey"])
+            normalized_survey, normalization_warnings = normalize_survey(
+                parsed["survey"]
+            )
+            validation = validate_survey(normalized_survey)
             if validation.valid:
-                warnings = workflow_warnings + parsed["warnings"] + validation.warnings
+                warnings = (
+                    workflow_warnings
+                    + parsed["warnings"]
+                    + normalization_warnings
+                    + validation.warnings
+                )
                 return ConversionResult(
-                    survey=parsed["survey"],
+                    survey=normalized_survey,
                     warnings=list(dict.fromkeys(warnings)),
                     model=model_name,
                     attempts=attempt,

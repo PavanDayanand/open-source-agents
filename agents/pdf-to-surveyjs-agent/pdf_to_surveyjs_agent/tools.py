@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -43,6 +45,139 @@ CHOICE_QUESTION_TYPES = {
     "ranking",
     "tagbox",
 }
+
+
+def _humanize_name(name: str) -> str:
+    words = re.sub(r"[_-]+", " ", name).strip()
+    return words[:1].upper() + words[1:] if words else name
+
+
+def _clean_visible_if(expression: str) -> str:
+    """Repair common quoting mistakes without changing condition meaning."""
+
+    expression = expression.strip()
+    quoted_comparison = re.fullmatch(
+        r'"\{([^}]+)\}"\s*(=|!=)\s*"([^"]*)"', expression
+    )
+    if quoted_comparison:
+        field, operator, value = quoted_comparison.groups()
+        escaped_value = value.replace("'", "\\'")
+        return f"{{{field}}} {operator} '{escaped_value}'"
+
+    wrapped_expression = re.fullmatch(
+        r'"(\{[^}]+\}\s+contains\s+\'[^\']+\')"', expression
+    )
+    if wrapped_expression:
+        return wrapped_expression.group(1)
+    return expression
+
+
+def normalize_survey(value: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    """Normalize safe, unambiguous model mistakes before validation."""
+
+    survey = deepcopy(value)
+    warnings: list[str] = []
+    pages = survey.get("pages")
+    root_elements = survey.get("elements")
+
+    if isinstance(pages, list) and isinstance(root_elements, list):
+        unmapped: list[Any] = []
+        moved = 0
+        for element in root_elements:
+            if not isinstance(element, dict):
+                unmapped.append(element)
+                continue
+            page_ref = element.get("page")
+            page_index: int | None = None
+            if isinstance(page_ref, int) and not isinstance(page_ref, bool):
+                candidate = page_ref - 1
+                if 0 <= candidate < len(pages):
+                    page_index = candidate
+            elif isinstance(page_ref, str):
+                for index, page in enumerate(pages):
+                    if isinstance(page, dict) and page_ref == page.get("name"):
+                        page_index = index
+                        break
+
+            if page_index is None or not isinstance(pages[page_index], dict):
+                unmapped.append(element)
+                continue
+            page_elements = pages[page_index].get("elements")
+            if not isinstance(page_elements, list):
+                unmapped.append(element)
+                continue
+            normalized_element = deepcopy(element)
+            normalized_element.pop("page", None)
+            page_elements.append(normalized_element)
+            moved += 1
+
+        if moved:
+            warnings.append(
+                f"Moved {moved} question(s) from top-level elements into their pages."
+            )
+        if unmapped:
+            survey["elements"] = unmapped
+        else:
+            survey.pop("elements", None)
+
+    if isinstance(pages, list):
+        nonempty_pages = [
+            page
+            for page in pages
+            if not isinstance(page, dict)
+            or not isinstance(page.get("elements"), list)
+            or bool(page["elements"])
+        ]
+        removed_page_count = len(pages) - len(nonempty_pages)
+        if removed_page_count and nonempty_pages:
+            pages = nonempty_pages
+            survey["pages"] = pages
+            warnings.append(f"Removed {removed_page_count} empty page(s).")
+
+        used_page_names: set[str] = set()
+        for index, page in enumerate(pages, start=1):
+            if not isinstance(page, dict):
+                continue
+            original_name = page.get("name")
+            if isinstance(original_name, str) and original_name.strip():
+                page.setdefault("title", _humanize_name(original_name))
+                base_name = re.sub(r"[^a-z0-9]+", "_", original_name.lower()).strip("_")
+            else:
+                base_name = f"page_{index}"
+            base_name = base_name or f"page_{index}"
+            unique_name = base_name
+            suffix = 2
+            while unique_name in used_page_names:
+                unique_name = f"{base_name}_{suffix}"
+                suffix += 1
+            page["name"] = unique_name
+            used_page_names.add(unique_name)
+
+    element_groups: list[list[Any]] = []
+    if isinstance(survey.get("elements"), list):
+        element_groups.append(survey["elements"])
+    if isinstance(pages, list):
+        for page in pages:
+            if isinstance(page, dict) and isinstance(page.get("elements"), list):
+                element_groups.append(page["elements"])
+
+    for group in element_groups:
+        for element, _ in _iter_elements(group, "elements"):
+            if not isinstance(element, dict):
+                continue
+            name = element.get("name")
+            if (
+                element.get("type") != "html"
+                and isinstance(name, str)
+                and name.strip()
+                and not isinstance(element.get("title"), str)
+            ):
+                element["title"] = _humanize_name(name)
+            visible_if = element.get("visibleIf")
+            if isinstance(visible_if, str):
+                element["visibleIf"] = _clean_visible_if(visible_if)
+
+    return survey, warnings
 
 
 def extract_pdf(path: str | Path) -> ExtractionResult:
@@ -179,6 +314,11 @@ def validate_survey(value: Any) -> ValidationResult:
         return ValidationResult(valid=False, errors=["Survey must be a JSON object."])
 
     element_groups: list[tuple[list[Any], str]] = []
+    if "elements" in value and "pages" in value:
+        errors.append(
+            "Survey cannot mix top-level 'elements' with 'pages'; put each question "
+            "inside its page's elements array."
+        )
     if "elements" in value:
         if isinstance(value["elements"], list):
             element_groups.append((value["elements"], "elements"))
@@ -195,6 +335,9 @@ def validate_survey(value: Any) -> ValidationResult:
                 if not isinstance(page, dict):
                     errors.append(f"{page_location} must be an object.")
                     continue
+                page_name = page.get("name")
+                if not isinstance(page_name, str) or not page_name.strip():
+                    errors.append(f"{page_location}.name must be a non-empty string.")
                 elements = page.get("elements")
                 if not isinstance(elements, list):
                     errors.append(f"{page_location}.elements must be an array.")
@@ -239,7 +382,7 @@ def validate_survey(value: Any) -> ValidationResult:
             if title is not None and not isinstance(title, str):
                 errors.append(f"{item_location}.title must be a string when provided.")
             if not isinstance(title, str) or not title.strip():
-                warnings.append(f"{item_location} has no human-readable title.")
+                errors.append(f"{item_location}.title must be a non-empty string.")
 
             if "isRequired" in element and not isinstance(element["isRequired"], bool):
                 errors.append(f"{item_location}.isRequired must be true or false.")

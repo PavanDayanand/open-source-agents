@@ -184,12 +184,12 @@ The suite creates temporary synthetic PDFs and covers extraction, low-text handl
 
 ## Validation Scope
 
-This MVP accepts top-level `elements` or `pages[].elements` and a conservative set of common SurveyJS types. Checks include:
+This MVP accepts either top-level `elements` or `pages[].elements` (never both) and a conservative set of common SurveyJS types. Before validation, it safely normalizes common model formatting mistakes such as page-number references, missing display titles, and unnecessarily quoted conditional expressions. Checks include:
 
 - a JSON object with at least one question;
 - supported question `type` values;
 - non-empty, unique question `name` values;
-- string titles when present, with a warning when missing;
+- non-empty human-readable titles for every question;
 - non-empty `choices` for choice questions;
 - boolean `isRequired` and string `visibleIf` values.
 
