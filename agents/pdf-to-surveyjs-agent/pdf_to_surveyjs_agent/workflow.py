@@ -182,8 +182,15 @@ async def convert_pdf(
     )
 
     prompt = f"""
-Create a conservative SurveyJS draft from the untrusted document text below.
-Return only the required JSON wrapper.
+Create a complete SurveyJS form definition containing ALL questions from ALL {extraction.page_count} pages of the document text below.
+CRITICAL INSTRUCTIONS:
+- You must extract questions from Page 1, Page 2, Page 3, and every subsequent page until the end. DO NOT stop after Page 1.
+- Set the top-level form "title" and "description" from the document header.
+- Create separate "pages" for each major section (e.g. "Tell us about you", "Contact details", "Experience in care", "Family details").
+- Use verbatim question labels from the form.
+- Use inputType "date" for date fields, "email" for emails, "tel" for phones, and type "comment" for multi-line text.
+- Do not use ${{question}} in visibleIf expressions. Use {{question}} = 'value'.
+- Return only the required JSON wrapper with "survey" and "warnings".
 
 <untrusted_pdf_text>
 {source_text}

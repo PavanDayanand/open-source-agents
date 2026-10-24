@@ -53,9 +53,10 @@ def _humanize_name(name: str) -> str:
 
 
 def _clean_visible_if(expression: str) -> str:
-    """Repair common quoting mistakes without changing condition meaning."""
+    """Repair common quoting and syntax mistakes without changing condition meaning."""
 
     expression = expression.strip()
+    expression = re.sub(r"\$\{([^}]+)\}", r"{\1}", expression)
     quoted_comparison = re.fullmatch(
         r'"\{([^}]+)\}"\s*(=|!=)\s*"([^"]*)"', expression
     )
@@ -92,27 +93,40 @@ def normalize_survey(value: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
             if not isinstance(element, dict):
                 unmapped.append(element)
                 continue
-            page_ref = element.get("page")
+            page_ref = element.get("page") or element.get("pageTitle") or element.get("page_title")
             page_index: int | None = None
             if isinstance(page_ref, int) and not isinstance(page_ref, bool):
                 candidate = page_ref - 1
                 if 0 <= candidate < len(pages):
                     page_index = candidate
-            elif isinstance(page_ref, str):
+            elif isinstance(page_ref, str) and page_ref.strip():
+                clean_ref = page_ref.strip().lower()
                 for index, page in enumerate(pages):
-                    if isinstance(page, dict) and page_ref == page.get("name"):
-                        page_index = index
-                        break
+                    if isinstance(page, dict):
+                        p_name = str(page.get("name", "")).strip().lower()
+                        p_title = str(page.get("title", "")).strip().lower()
+                        if clean_ref in (p_name, p_title) or clean_ref.replace(" ", "_") == p_name:
+                            page_index = index
+                            break
+                if page_index is None:
+                    # Dynamically create the page matching the referenced section title
+                    new_slug = re.sub(r"[^a-z0-9]+", "_", clean_ref).strip("_") or f"page_{len(pages)+1}"
+                    new_page = {"name": new_slug, "title": page_ref.strip(), "elements": []}
+                    pages.append(new_page)
+                    page_index = len(pages) - 1
+
+            normalized_element = deepcopy(element)
+            normalized_element.pop("page", None)
+            normalized_element.pop("pageTitle", None)
+            normalized_element.pop("page_title", None)
 
             if page_index is None or not isinstance(pages[page_index], dict):
-                unmapped.append(element)
+                unmapped.append(normalized_element)
                 continue
             page_elements = pages[page_index].get("elements")
             if not isinstance(page_elements, list):
-                unmapped.append(element)
+                unmapped.append(normalized_element)
                 continue
-            normalized_element = deepcopy(element)
-            normalized_element.pop("page", None)
             page_elements.append(normalized_element)
             moved += 1
 
@@ -121,6 +135,7 @@ def normalize_survey(value: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
                 f"Moved {moved} question(s) from top-level elements into their pages."
             )
         if unmapped:
+            # Group unmapped by pageTitle if present, otherwise default to section
             pages.append(
                 {
                     "name": "additional_questions",
@@ -167,29 +182,88 @@ def normalize_survey(value: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
             page["name"] = unique_name
             used_page_names.add(unique_name)
 
-    element_groups: list[list[Any]] = []
+    def _normalize_elements_list(elements_list: list[Any]) -> list[Any]:
+        cleaned: list[Any] = []
+        for el in elements_list:
+            if not isinstance(el, dict):
+                cleaned.append(el)
+                continue
+            # Merge dangling choice object into previous element if missing choices
+            if (
+                not el.get("type")
+                and not el.get("name")
+                and (el.get("choices") or el.get("options") or el.get("items") or el.get("values"))
+            ):
+                if cleaned and isinstance(cleaned[-1], dict) and cleaned[-1].get("type") in CHOICE_QUESTION_TYPES:
+                    prev_choices = el.get("choices") or el.get("options") or el.get("items") or el.get("values")
+                    if isinstance(prev_choices, list) and prev_choices:
+                        cleaned[-1]["choices"] = prev_choices
+                        continue
+            cleaned.append(el)
+
+        for el in cleaned:
+            if not isinstance(el, dict):
+                continue
+            el.pop("pageTitle", None)
+            el.pop("page_title", None)
+            el.pop("page", None)
+
+            # Normalize choices aliases (options, items, values)
+            if not el.get("choices"):
+                for alias in ("options", "items", "values"):
+                    val = el.pop(alias, None)
+                    if isinstance(val, list) and val:
+                        el["choices"] = val
+                        break
+
+            # Default missing question type (SurveyJS defaults to text)
+            q_type = el.get("type")
+            if not isinstance(q_type, str) or not q_type.strip():
+                if el.get("html"):
+                    el["type"] = "html"
+                elif el.get("choices"):
+                    el["type"] = "radiogroup"
+                else:
+                    el["type"] = "text"
+
+            # Choice question without choices fallback
+            if el.get("type") in CHOICE_QUESTION_TYPES:
+                choices = el.get("choices")
+                if not isinstance(choices, list) or not choices:
+                    title_lower = str(el.get("title", "")).lower()
+                    if any(title_lower.startswith(p) for p in ("are you", "do you", "is", "have you", "will", "can")):
+                        el["choices"] = ["Yes", "No"]
+                    else:
+                        el["type"] = "text"
+
+            name = el.get("name")
+            if (
+                el.get("type") != "html"
+                and isinstance(name, str)
+                and name.strip()
+                and not isinstance(el.get("title"), str)
+            ):
+                el["title"] = _humanize_name(name)
+            visible_if = el.get("visibleIf")
+            if isinstance(visible_if, str):
+                el["visibleIf"] = _clean_visible_if(visible_if)
+
+            nested = el.get("elements")
+            if isinstance(nested, list):
+                el["elements"] = _normalize_elements_list(nested)
+
+        return cleaned
+
     if isinstance(survey.get("elements"), list):
-        element_groups.append(survey["elements"])
+        survey["elements"] = _normalize_elements_list(survey["elements"])
     if isinstance(pages, list):
         for page in pages:
             if isinstance(page, dict) and isinstance(page.get("elements"), list):
-                element_groups.append(page["elements"])
+                page["elements"] = _normalize_elements_list(page["elements"])
 
-    for group in element_groups:
-        for element, _ in _iter_elements(group, "elements"):
-            if not isinstance(element, dict):
-                continue
-            name = element.get("name")
-            if (
-                element.get("type") != "html"
-                and isinstance(name, str)
-                and name.strip()
-                and not isinstance(element.get("title"), str)
-            ):
-                element["title"] = _humanize_name(name)
-            visible_if = element.get("visibleIf")
-            if isinstance(visible_if, str):
-                element["visibleIf"] = _clean_visible_if(visible_if)
+    if not survey.get("title") and pages and isinstance(pages, list) and isinstance(pages[0], dict):
+        if pages[0].get("title"):
+            survey["title"] = pages[0]["title"]
 
     return survey, warnings
 

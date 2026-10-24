@@ -208,3 +208,39 @@ def test_normalizes_model_page_layout_titles_and_conditions() -> None:
         "Removed 1 empty page(s).",
     ]
 
+
+def test_normalize_survey_recovers_missing_types_and_choice_aliases() -> None:
+    raw = {
+        "pages": [
+            {
+                "name": "details",
+                "elements": [
+                    {
+                        "type": "radiogroup",
+                        "name": "work_with_lawyer",
+                        "title": "Are you working with a lawyer?",
+                        "options": ["Yes", "No"],
+                    },
+                    {
+                        "name": "lawyer_name",
+                        "title": "Lawyer name",
+                    },
+                    {
+                        "type": "checkbox",
+                        "name": "contact_method",
+                        "title": "Preferred contact",
+                        "items": ["Email", "Phone"],
+                    },
+                ],
+            }
+        ]
+    }
+
+    survey, _ = normalize_survey(raw)
+    result = validate_survey(survey)
+
+    assert result.valid is True
+    assert survey["pages"][0]["elements"][0]["choices"] == ["Yes", "No"]
+    assert survey["pages"][0]["elements"][1]["type"] == "text"
+    assert survey["pages"][0]["elements"][2]["choices"] == ["Email", "Phone"]
+
